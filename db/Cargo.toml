@@ -1,0 +1,51 @@
+[package]
+name = "db"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+#features = ["xxx"] 就是 “给 crate 打勾”——
+#告诉编译器：我只想要这个库里的 “A/B/C 子模块”，其余不要，
+#减体积、减依赖、减编译时间，还能开启额外能力。
+
+# ========== Web 框架 ==========
+actix-web = "4"
+# ✅ Rust 最主流 Web 框架，**tokio 底层**，**单核 7w QPS**；  
+# 提供 `HttpServer`、`web::Data`、`HttpResponse` 全家桶。
+
+# ========== 时间戳 ==========
+chrono = { version = "0.4.42", features = ["serde"] }  
+# ✅ 日期/时间/时区 + **serde 支持**（直接 `#[derive(Serialize)]`  on `NaiveDateTime`）。
+
+# ========== 环境变量 ==========
+dotenv = "0.15.0"                 
+# ✅ 加载 `.env` 文件到 **进程环境变量**，**本地开发**用（数据库 URL、密钥）。
+
+# ========== TLS/HTTPS ==========
+openssl = { version = "0.10.38", features = ["vendored"] }  
+# ✅ **静态链接 OpenSSL** → **Linux 裸机/容器**不用再装系统 libssl；  
+# **vendored = 自带源码编译**，部署时 **零依赖**。
+
+# ========== 序列化 ==========
+serde = { version = "1.0.134", features = ["derive"] }  
+# ✅ **Rust 序列化一哥**；`#[derive(Serialize, Deserialize)]` 一键生成 JSON/Binary 编解码。
+
+# ========== 数据库 ==========
+sqlx = { version = "0.8.5", features = [
+    "postgres",          # ✅ **PostgreSQL 驱动**
+    "runtime-tokio-rustls", # ✅ **tokio 异步运行时 + rustls TLS**（比 OpenSSL 轻）
+    "macros",            # ✅ **编译期 SQL 检查**（`query!` 宏直接检查表/列存在）
+    "chrono",            # ✅ **NaiveDateTime ↔ SQL timestamp** 自动映射
+] }
+#
+#PostgreSQL
+#“Name 是列名，Data type 是类型，Identity 是自增，Not Null 是非空，Default 是默#认值，Comment 是注释。”
+
+#-- DROP TABLE rust_test1.course;
+#CREATE TABLE rust_test1.course (
+#	id int4 GENERATED ALWAYS AS IDENTITY NOT NULL,
+#	teacher_id int4 DEFAULT 0 NULL,
+#	"name" varchar DEFAULT ''::character varying NULL,
+#	"time" timestamp DEFAULT now() NULL,
+#	CONSTRAINT course_pk PRIMARY KEY (id)
+#);
