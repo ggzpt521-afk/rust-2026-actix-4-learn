@@ -873,7 +873,7 @@ cargo test
 
 ## 学习资源
 
-- [The Rust Book](https://doc.rust-lang.org/book/)
+- [The Rust Book](https://rustwiki.org/zh-CN/book/title-page.html)
 - [Actix-Web 文档](https://actix.rs/docs/)
 - [SQLx 文档](https://docs.rs/sqlx/latest/sqlx/)
 - [Serde 文档](https://serde.rs/)
