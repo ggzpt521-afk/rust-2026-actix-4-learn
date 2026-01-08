@@ -877,3 +877,4 @@ cargo test
 - [Actix-Web 文档](https://actix.rs/docs/)
 - [SQLx 文档](https://docs.rs/sqlx/latest/sqlx/)
 - [Serde 文档](https://serde.rs/)
+- [Rust 中文学习文档](https://rustwiki.org/)
