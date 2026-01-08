@@ -835,10 +835,10 @@ mod tests {
 
 | 库名 | 发音 | 含义 |
 |------|------|------|
-| actix | /ˈæktɪks/ 安可替克斯 | Web 框架 |
-| chrono | /ˈkrɑːnoʊ/ 卡弄 | 时间日期 |
+| actix | /ˈæktɪks/  | Web 框架 |
+| chrono | /ˈkrɑːnoʊ/  | 时间日期 |
 | dotenv | /dɑːt env/ | 环境变量 |
-| serde | /ˈsɜːrdi/ 色弟 | 序列化 |
+| serde | /ˈsɜːrdi/  | 序列化 |
 | sqlx | /ˌes kjuː el ˈeks/ | 数据库 |
 | tokio | /ˈtoʊkioʊ/ | 异步运行时 |
 
