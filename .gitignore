@@ -1,0 +1,8 @@
+# Ignore Rust build artifacts
+target/
+
+# IDE files
+.vscode/
+
+# macOS
+.DS_Store
