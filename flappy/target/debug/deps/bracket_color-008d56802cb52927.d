@@ -1,0 +1,12 @@
+/Users/zpt/AnewProject/rust/learn-one/flappy/target/debug/deps/bracket_color-008d56802cb52927.d: /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lib.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/color_pair.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/hsv.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lerpit.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/named.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/palette.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgb.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgba.rs
+
+/Users/zpt/AnewProject/rust/learn-one/flappy/target/debug/deps/libbracket_color-008d56802cb52927.rmeta: /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lib.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/color_pair.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/hsv.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lerpit.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/named.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/palette.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgb.rs /Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgba.rs
+
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lib.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/color_pair.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/hsv.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/lerpit.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/named.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/palette.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgb.rs:
+/Users/zpt/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bracket-color-0.8.7/src/rgba.rs:
