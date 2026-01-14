@@ -1,0 +1,54 @@
+[package]
+name = "slint-ai-one"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = "1.9"
+sys-info = "0.9.1"
+tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "time"] }
+
+# 基础组件示例
+[[bin]]
+name = "01_basic_components"
+path = "src/01_basic_components.rs"
+
+# 数据绑定示例
+[[bin]]
+name = "02_data_binding"
+path = "src/02_data_binding.rs"
+
+# 事件处理示例
+[[bin]]
+name = "03_event_handling"
+path = "src/03_event_handling.rs"
+
+# 状态管理示例
+[[bin]]
+name = "04_state_management"
+path = "src/04_state_management.rs"
+
+# 自定义组件示例
+[[bin]]
+name = "05_custom_components"
+path = "src/05_custom_components.rs"
+
+# 列表渲染示例
+[[bin]]
+name = "06_list_rendering"
+path = "src/06_list_rendering.rs"
+
+# 布局样式示例
+[[bin]]
+name = "07_layout_styling"
+path = "src/07_layout_styling.rs"
+
+# 跨平台构建示例
+[[bin]]
+name = "08_cross_platform"
+path = "src/08_cross_platform.rs"
+
+# 异步数据交互示例
+[[bin]]
+name = "09_async_data"
+path = "src/09_async_data.rs"

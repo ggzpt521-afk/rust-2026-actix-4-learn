@@ -1,0 +1,308 @@
+// ============================================================================
+// 03_event_handling.slint - Slint 事件处理示例
+// ============================================================================
+//
+// 【文件说明】
+// 本文件演示 Slint 的事件处理机制
+// 事件是用户与 UI 交互的方式，包括点击、输入、键盘等
+//
+// 【与 .rs 文件的关联】
+// 事件处理有两种方式：
+// 1. 在 .slint 文件内处理（简单逻辑）
+// 2. 通过 callback 传递到 Rust 处理（复杂逻辑）
+//
+// 【callback 机制】
+// callback 是 .slint 和 .rs 之间的桥梁：
+// - .slint 中声明：callback name(param-types);
+// - .slint 中调用：name(args);
+// - .rs 中实现：app.on_name(|args| { ... });
+//
+// 【事件处理原理】
+// Slint 的事件系统是编译时类型安全的：
+// 1. 组件定义事件类型（如 clicked）
+// 2. 使用 => { } 语法处理事件
+// 3. 事件处理器可以修改属性、调用回调
+// ============================================================================
+
+export component EventHandling {
+    width: 450px;
+    height: 400px;
+
+    // ========================================================================
+    // 组件状态属性
+    // ========================================================================
+    // 这些属性用于跟踪事件状态和显示日志
+    in-out property <string> event-log: "事件日志：\n";  // 事件日志
+    in-out property <bool> button-enabled: true;         // 按钮启用状态
+    in-out property <int> click-count: 0;                // 点击计数
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 15px;
+
+        Text {
+            text: "事件处理示例";
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            horizontal-alignment: center;
+        }
+
+        // ====================================================================
+        // 点击事件（clicked）
+        // ====================================================================
+        // clicked 是最常用的事件，在用户点击时触发
+        //
+        // 【语法】
+        // Slint 0.x: on-clicked: { ... }
+        // Slint 1.x: clicked => { ... }
+        //
+        // 【事件处理器内可以做什么】
+        // 1. 修改属性：counter = counter + 1;
+        // 2. 调用回调：my-callback(args);
+        // 3. 调用函数：my-function();
+        // 4. 条件逻辑：if condition { ... }
+        //
+        // 【与 Rust 的关系】
+        // 如果需要在 Rust 中处理点击：
+        // 1. 声明回调：callback button-clicked();
+        // 2. 在事件中调用：clicked => { button-clicked(); }
+        // 3. Rust 中实现：app.on_button_clicked(|| { ... });
+        Button {
+            // 动态文本：显示点击计数
+            text: "点击我 (计数: " + click-count + ")";
+            // enabled 属性控制按钮是否可点击
+            enabled: button-enabled;
+            // 事件处理：点击时增加计数并记录日志
+            on-clicked: {
+                click-count += 1;
+                event-log += "按钮点击，计数: " + click-count + "\n";
+            }
+        }
+
+        // ====================================================================
+        // 鼠标事件
+        // ====================================================================
+        // Rectangle 可以响应多种鼠标事件：
+        // - on-hovered: 鼠标悬停进入
+        // - on-hover-exited: 鼠标悬停离开
+        // - on-mouse-pressed: 鼠标按下
+        // - on-mouse-released: 鼠标释放
+        //
+        // 【注意】
+        // 普通 Rectangle 默认不响应鼠标事件
+        // 需要添加 TouchArea 或使用事件处理器来启用
+        // 此语法是 Slint 0.x 的示意，实际 1.x 需要使用 TouchArea
+        Rectangle {
+            width: 150px;
+            height: 80px;
+            background: #0066cc;
+            border-radius: 8px;
+
+            Text {
+                text: "鼠标悬停此处";
+                color: white;
+                font-size: 16px;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+
+            // 悬停进入事件
+            on-hovered: {
+                background = #0088ff;  // 改变背景色
+                event-log += "鼠标悬停在矩形上\n";
+            }
+
+            // 悬停离开事件
+            on-hover-exited: {
+                background = #0066cc;
+                event-log += "鼠标离开矩形\n";
+            }
+
+            // 鼠标按下事件
+            on-mouse-pressed: {
+                background = #0044aa;
+                event-log += "鼠标在矩形上按下\n";
+            }
+
+            // 鼠标释放事件
+            on-mouse-released: {
+                background = #0088ff;
+                event-log += "鼠标在矩形上释放\n";
+            }
+        }
+
+        // ====================================================================
+        // 键盘事件
+        // ====================================================================
+        // LineEdit 支持键盘事件：
+        // - on-key-pressed: 键盘按下
+        // - on-key-released: 键盘释放
+        //
+        // 【KeyEvent 参数】
+        // event.key: 按下的键（Key::Enter, Key::Escape 等）
+        // event.text: 输入的文本字符
+        // event.modifiers: 修饰键（Ctrl, Shift, Alt）
+        //
+        // 【注意】Slint 1.x 中使用 FocusScope 处理键盘事件
+        LineEdit {
+            placeholder-text: "按任意键，然后按Enter";
+            width: 300px;
+
+            // 键盘按下事件
+            // event 参数包含按键信息
+            on-key-pressed(event): {
+                // 检查是否按下 Enter 键
+                if event.key == Key::Enter {
+                    event-log += "按下Enter键，输入内容: " + text + "\n";
+                }
+            }
+        }
+
+        // ====================================================================
+        // 自定义回调事件
+        // ====================================================================
+        // 当需要在 Rust 中处理复杂逻辑时，使用 callback
+        //
+        // 【工作流程】
+        // 1. .slint 中声明回调
+        // 2. .slint 中在事件处理器里调用回调
+        // 3. .rs 中实现回调处理函数
+        //
+        // 【示例 Rust 代码】
+        // app.on_custom_event_triggered(|data| {
+        //     println!("收到自定义事件: {}", data);
+        //     // 执行复杂的业务逻辑
+        //     // 可以访问数据库、发送网络请求等
+        // });
+        Button {
+            text: "触发自定义事件";
+            on-clicked: {
+                event-log += "触发自定义事件\n";
+                // 调用回调，将数据传递给 Rust
+                custom-event-triggered("自定义事件数据");
+            }
+        }
+
+        // ====================================================================
+        // 事件日志显示
+        // ====================================================================
+        // ScrollView 提供可滚动的容器
+        // 用于显示可能很长的事件日志
+        ScrollView {
+            width: 100%;
+            height: 120px;
+            border: 1px solid #ccc;
+            background: #f5f5f5;
+
+            Text {
+                text: event-log;
+                font-size: 14px;
+                color: #333;
+                // word-wrap: 文本换行
+                word-wrap: true;
+                padding: 10px;
+            }
+        }
+
+        // ====================================================================
+        // 控制按钮状态
+        // ====================================================================
+        // 演示如何通过事件修改其他组件的状态
+        HorizontalLayout {
+            spacing: 15px;
+            alignment: center;
+
+            // 切换按钮启用/禁用状态
+            Button {
+                // 条件表达式显示不同文本
+                text: button-enabled ? "禁用主按钮" : "启用主按钮";
+                on-clicked: {
+                    // 取反操作
+                    button-enabled = !button-enabled;
+                    event-log += "主按钮" + (button-enabled ? "启用" : "禁用") + "\n";
+                }
+            }
+
+            // 清空日志
+            Button {
+                text: "清空日志";
+                on-clicked: {
+                    event-log = "事件日志：\n";
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // 回调声明
+    // ========================================================================
+    // callback: 声明一个可从 Rust 实现的回调函数
+    //
+    // 【语法】
+    // callback name(param-types);           // 无返回值
+    // callback name(param-types) -> type;   // 有返回值
+    //
+    // 【与 Rust 的关联】
+    // 声明：callback custom-event-triggered(string);
+    // Rust 中：
+    //   app.on_custom_event_triggered(|data: SharedString| {
+    //       println!("收到: {}", data);
+    //   });
+    //
+    // 【带返回值的回调】
+    // 声明：callback calculate(int, int) -> int;
+    // Slint 中调用：result = calculate(a, b);
+    // Rust 中实现：
+    //   app.on_calculate(|a, b| a + b);
+    callback custom-event-triggered(string);
+}
+
+// ============================================================================
+// 【知识点总结】
+// ============================================================================
+//
+// 1. 常用事件
+//    clicked        - 点击事件（Button, TouchArea）
+//    edited         - 文本编辑（LineEdit, Slint 1.x）
+//    accepted       - 按下回车（LineEdit）
+//    toggled        - 状态切换（CheckBox, RadioButton）
+//    changed        - 值变化（Slider）
+//    key-pressed    - 键盘按下（FocusScope）
+//    key-released   - 键盘释放（FocusScope）
+//
+// 2. 事件处理语法
+//    Slint 0.x: on-event-name: { statements; }
+//    Slint 1.x: event-name => { statements; }
+//
+// 3. 回调机制
+//    声明：callback name(types);
+//    调用：name(args);
+//    实现：app.on_name(|args| { ... });
+//
+// 4. 事件处理器能力
+//    - 修改属性
+//    - 调用回调
+//    - 调用组件函数
+//    - 条件判断
+//    - 循环（有限制）
+//
+// 5. 鼠标事件（需要 TouchArea）
+//    clicked        - 点击
+//    moved          - 移动
+//    pressed        - 按下
+//    released       - 释放
+//    scroll-event   - 滚动
+//
+// 6. 键盘事件（需要 FocusScope）
+//    key-pressed(KeyEvent)   - 按下
+//    key-released(KeyEvent)  - 释放
+//    KeyEvent.key            - 按键枚举
+//    KeyEvent.text           - 文本
+//    KeyEvent.modifiers      - 修饰键
+//
+// 7. 与 .rs 文件的关系
+//    .slint: 声明 callback，在事件中调用
+//    .rs:    使用 on_xxx() 实现回调处理
+//    桥梁:   callback 连接 UI 事件和业务逻辑
+// ============================================================================

@@ -1,0 +1,338 @@
+// ============================================================================
+// 08_cross_platform.slint - Slint 跨平台构建示例
+// ============================================================================
+//
+// 【文件说明】
+// 本文件演示 Slint 的跨平台特性
+// Slint 支持 Windows、macOS、Linux 及嵌入式平台
+//
+// 【与 .rs 文件的关联】
+// - 平台检测逻辑在 Rust 中实现
+// - 使用条件编译 #[cfg()] 处理平台差异
+// - 系统信息通过属性传递给 UI
+// - callback 可用于触发平台特定功能
+//
+// 【跨平台原理】
+// 1. Rust + Slint 编译为原生二进制
+// 2. 渲染后端可选：OpenGL、Skia、软件渲染
+// 3. 窗口管理使用 winit（跨平台窗口抽象）
+// 4. UI 定义完全平台无关
+//
+// 【跨平台构建流程】
+// 1. cargo build --target x86_64-pc-windows-msvc    # Windows
+// 2. cargo build --target x86_64-unknown-linux-gnu  # Linux
+// 3. cargo build --target x86_64-apple-darwin       # macOS Intel
+// 4. cargo build --target aarch64-apple-darwin      # macOS Apple Silicon
+// ============================================================================
+
+// ============================================================================
+// 全局样式变量
+// ============================================================================
+// 定义平台无关的样式变量
+// 这些变量在所有平台上使用相同的值
+@global-styles {
+    // 通用样式变量
+    --primary-color: #0066cc;
+    --text-color: #333333;
+    --bg-color: #ffffff;
+    --border-color: #e0e0e0;
+
+    // 平台特定变量（可由 Rust 覆盖）
+    --platform-name: "未知平台";
+    --platform-icon: "📱";
+}
+
+// ============================================================================
+// 主应用组件
+// ============================================================================
+export component CrossPlatform {
+    width: 400px;
+    height: 350px;
+
+    // ========================================================================
+    // 平台信息属性
+    // ========================================================================
+    // 这些属性由 Rust 代码在运行时设置
+    // 展示了 .slint 和 .rs 之间的数据传递
+    //
+    // 【Rust 设置示例】
+    // let os_type = sys_info::os_type().unwrap();
+    // app.set_platform_name(match os_type.as_str() {
+    //     "Darwin" => "macOS",
+    //     "Linux" => "Linux",
+    //     "Windows_NT" => "Windows",
+    //     _ => "未知",
+    // }.into());
+    //
+    // 【in property】
+    // 由 Rust 设置，UI 只读
+    // 适合传递系统信息、配置等
+    in property <string> platform-name: "";    // 平台名称
+    in property <string> platform-icon: "";    // 平台图标（emoji）
+    in property <string> os-version: "";       // 系统版本
+    in property <string> architecture: "";     // CPU 架构
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 15px;
+
+        // ====================================================================
+        // 标题区域
+        // ====================================================================
+        // 显示平台图标和标题
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+            vertical-alignment: center;
+
+            // 平台图标（由 Rust 设置）
+            Text {
+                text: platform-icon;
+                font-size: 32px;
+            }
+
+            Text {
+                text: "跨平台构建示例";
+                font-size: 24px;
+                font-weight: bold;
+                color: var(--text-color);
+            }
+        }
+
+        // ====================================================================
+        // 平台信息卡片
+        // ====================================================================
+        // 显示从 Rust 获取的系统信息
+        Rectangle {
+            width: 100%;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+
+            VerticalLayout {
+                spacing: 10px;
+
+                // 平台名称
+                HorizontalLayout {
+                    spacing: 10px;
+
+                    Text {
+                        text: "平台:";
+                        font-weight: bold;
+                        color: var(--text-color);
+                        width: 80px;
+                    }
+
+                    // 绑定到 Rust 设置的属性
+                    Text {
+                        text: platform-name;
+                        color: var(--primary-color);
+                    }
+                }
+
+                // 系统版本
+                HorizontalLayout {
+                    spacing: 10px;
+
+                    Text {
+                        text: "版本:";
+                        font-weight: bold;
+                        color: var(--text-color);
+                        width: 80px;
+                    }
+
+                    Text {
+                        text: os-version;
+                        color: var(--text-color);
+                    }
+                }
+
+                // CPU 架构
+                HorizontalLayout {
+                    spacing: 10px;
+
+                    Text {
+                        text: "架构:";
+                        font-weight: bold;
+                        color: var(--text-color);
+                        width: 80px;
+                    }
+
+                    Text {
+                        text: architecture;
+                        color: var(--text-color);
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 跨平台功能说明
+        // ====================================================================
+        Rectangle {
+            width: 100%;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+
+            // 多行文本使用 \n 或 \ 续行
+            Text {
+                text: "跨平台特性:  \
+• 自动适应不同操作系统  \
+• 统一的代码库  \
+• 原生性能体验  \
+• 支持 Windows、macOS、Linux  \
+• 可打包为独立应用";
+                font-size: 14px;
+                color: var(--text-color);
+                line-height: 1.5;
+            }
+        }
+
+        // ====================================================================
+        // 构建说明按钮
+        // ====================================================================
+        // 点击按钮触发 callback，由 Rust 处理
+        Button {
+            text: "查看构建说明";
+            alignment: center;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 8px;
+
+            on-clicked: {
+                // 调用回调，由 Rust 处理
+                // 可以打开对话框、显示帮助等
+                show-build-instructions();
+            }
+        }
+    }
+
+    // ========================================================================
+    // 对话框定义（Slint 0.x 语法）
+    // ========================================================================
+    // dialog: 定义模态对话框
+    //
+    // 【注意】
+    // 这是 Slint 0.x 的语法
+    // Slint 1.x 推荐使用 PopupWindow 或自定义组件
+    //
+    // 【使用方式】
+    // 1. 定义 dialog
+    // 2. 通过 callback 或属性控制显示
+    dialog BuildInstructions {
+        width: 350px;
+        height: 250px;
+        title: "构建说明";
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 10px;
+
+            Text {
+                text: "跨平台构建命令:";
+                font-weight: bold;
+                color: var(--text-color);
+            }
+
+            // 代码块显示
+            ScrollView {
+                width: 100%;
+                height: 150px;
+                border: 1px solid var(--border-color);
+
+                Text {
+                    // 多行字符串使用 + 拼接
+                    text: "# 开发构建\n"
+                         + "cargo run --bin 08_cross_platform\n\n"
+                         + "# 发布构建\n"
+                         + "cargo build --release --bin 08_cross_platform\n\n"
+                         + "# 跨平台交叉编译\n"
+                         + "# Windows\n"
+                         + "cargo build --target x86_64-pc-windows-msvc --release\n\n"
+                         + "# Linux\n"
+                         + "cargo build --target x86_64-unknown-linux-gnu --release\n\n"
+                         + "# macOS\n"
+                         + "cargo build --target x86_64-apple-darwin --release\n"
+                         + "cargo build --target aarch64-apple-darwin --release";
+                    font-family: monospace;  // 等宽字体
+                    font-size: 12px;
+                    color: var(--text-color);
+                    padding: 10px;
+                    white-space: pre;        // 保留空白和换行
+                }
+            }
+
+            Button {
+                text: "关闭";
+                alignment: center;
+                on-clicked: {
+                    close();  // 关闭对话框
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // 回调声明
+    // ========================================================================
+    // 这个回调由 Rust 实现
+    // 用于处理"查看构建说明"按钮点击
+    //
+    // 【Rust 实现示例】
+    // app.on_show_build_instructions(|| {
+    //     // 显示对话框或打开帮助文档
+    //     println!("显示构建说明");
+    // });
+    callback show-build-instructions();
+}
+
+// ============================================================================
+// 【知识点总结】
+// ============================================================================
+//
+// 1. 跨平台支持
+//    - Windows (x86_64-pc-windows-msvc)
+//    - Linux (x86_64-unknown-linux-gnu)
+//    - macOS Intel (x86_64-apple-darwin)
+//    - macOS Apple Silicon (aarch64-apple-darwin)
+//    - 嵌入式（ARM 等）
+//
+// 2. Rust 条件编译
+//    #[cfg(target_os = "windows")]
+//    #[cfg(target_os = "linux")]
+//    #[cfg(target_os = "macos")]
+//    #[cfg(target_arch = "x86_64")]
+//    #[cfg(target_arch = "aarch64")]
+//
+// 3. 系统信息获取
+//    sys-info crate: os_type(), os_release()
+//    std::env::consts: OS, ARCH
+//    编译时常量 vs 运行时检测
+//
+// 4. 渲染后端
+//    femtovg (OpenGL) - 默认
+//    skia - Google 2D 图形库
+//    software - 纯软件渲染
+//
+// 5. 属性传递
+//    Rust → UI: in property
+//    用于传递系统信息、配置等
+//    app.set_property_name(value)
+//
+// 6. 对话框
+//    Slint 0.x: dialog { }
+//    Slint 1.x: PopupWindow 或自定义组件
+//
+// 7. 打包发布
+//    Windows: .exe / MSIX
+//    macOS: .app / DMG
+//    Linux: AppImage / Flatpak / DEB / RPM
+//
+// 8. 与 .rs 的关系
+//    .slint: 平台无关的 UI 定义
+//    .rs:    平台特定逻辑（条件编译）
+//    桥梁:   property 传递平台信息
+// ============================================================================

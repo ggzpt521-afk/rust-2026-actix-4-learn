@@ -1,0 +1,385 @@
+// ============================================================================
+// 04_state_management.slint - Slint 状态管理示例
+// ============================================================================
+//
+// 【文件说明】
+// 本文件演示 Slint 的状态管理模式
+// 状态管理是构建复杂应用的关键，决定了数据如何流动和存储
+//
+// 【与 .rs 文件的关联】
+// - 简单状态：直接在 .slint 中管理
+// - 复杂状态：在 .rs 中管理，通过属性同步到 UI
+// - 全局状态：可以使用 Rust 的状态管理库（如 Rc<RefCell>）
+//
+// 【状态管理原理】
+// Slint 的状态管理基于响应式属性：
+// 1. 状态存储在属性中
+// 2. UI 绑定到属性
+// 3. 状态变化 → 属性变化 → UI 自动更新
+//
+// 【状态管理模式】
+// 1. 本地状态：组件内部的 property
+// 2. 提升状态：将状态提升到父组件
+// 3. 全局状态：通过 Rust 管理共享状态
+// ============================================================================
+
+export component StateManagement {
+    width: 500px;
+    height: 400px;
+
+    // ========================================================================
+    // 结构体定义 - 复杂状态的组织方式
+    // ========================================================================
+    // struct: 定义自定义数据结构
+    //
+    // 【语法】
+    // struct StructName {
+    //     field1: type1,
+    //     field2: type2,
+    // }
+    //
+    // 【使用场景】
+    // - 组合相关的状态
+    // - 定义列表项的数据结构
+    // - 从 Rust 传递复杂数据
+    //
+    // 【与 Rust 的关联】
+    // struct 会在 Rust 中生成对应的结构体：
+    // #[derive(Clone, Default)]
+    // pub struct AppState {
+    //     pub theme: SharedString,
+    //     pub language: SharedString,
+    //     pub notifications: bool,
+    // }
+    struct AppState {
+        theme: string,         // 主题：light/dark
+        language: string,      // 语言：zh-CN/en-US
+        notifications: bool,   // 通知开关
+    }
+
+    // ========================================================================
+    // 使用结构体作为属性类型
+    // ========================================================================
+    // property <StructName> name: { field: value, ... };
+    //
+    // 【访问字段】
+    // app-state.theme      // 读取字段
+    // app-state.theme = "dark"  // 不能直接设置单个字段！
+    //
+    // 【更新结构体】
+    // Slint 中不能直接修改结构体的单个字段
+    // 必须创建新的结构体实例：
+    // app-state = { theme: "dark", language: app-state.language, ... };
+    //
+    // 【Rust 中更新】
+    // let mut state = app.get_app_state();
+    // state.theme = "dark".into();
+    // app.set_app_state(state);
+    in-out property <AppState> app-state: {
+        theme: "light",
+        language: "zh-CN",
+        notifications: true
+    };
+
+    // 简单类型的状态
+    in-out property <int> counter: 0;
+    in-out property <string> counter-type: "normal";
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 15px;
+
+        Text {
+            text: "状态管理示例";
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            horizontal-alignment: center;
+        }
+
+        // ====================================================================
+        // 主题切换 - 状态驱动的 UI
+        // ====================================================================
+        // 演示如何根据状态改变 UI 样式
+        //
+        // 【状态驱动原理】
+        // 1. 状态存储在 app-state.theme
+        // 2. UI 元素绑定到状态：background: app-state.theme == "light" ? ...
+        // 3. 点击按钮 → 更新状态 → UI 自动更新
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+
+            Text {
+                text: "主题:";
+                font-size: 16px;
+            }
+
+            Button {
+                text: "浅色";
+                // 根据当前主题设置按钮样式
+                background: app-state.theme == "light" ? #0066cc : #e0e0e0;
+                color: app-state.theme == "light" ? white : #333;
+                on-clicked: {
+                    // 更新结构体状态
+                    // 注意：必须创建完整的新结构体
+                    app-state = {
+                        theme: "light",
+                        language: app-state.language,
+                        notifications: app-state.notifications
+                    };
+                }
+            }
+
+            Button {
+                text: "深色";
+                background: app-state.theme == "dark" ? #0066cc : #e0e0e0;
+                color: app-state.theme == "dark" ? white : #333;
+                on-clicked: {
+                    app-state = {
+                        theme: "dark",
+                        language: app-state.language,
+                        notifications: app-state.notifications
+                    };
+                }
+            }
+        }
+
+        // ====================================================================
+        // 语言选择 - 另一个状态字段
+        // ====================================================================
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+
+            Text {
+                text: "语言:";
+                font-size: 16px;
+            }
+
+            Button {
+                text: "中文";
+                background: app-state.language == "zh-CN" ? #0066cc : #e0e0e0;
+                color: app-state.language == "zh-CN" ? white : #333;
+                on-clicked: {
+                    app-state = {
+                        theme: app-state.theme,
+                        language: "zh-CN",
+                        notifications: app-state.notifications
+                    };
+                }
+            }
+
+            Button {
+                text: "English";
+                background: app-state.language == "en-US" ? #0066cc : #e0e0e0;
+                color: app-state.language == "en-US" ? white : #333;
+                on-clicked: {
+                    app-state = {
+                        theme: app-state.theme,
+                        language: "en-US",
+                        notifications: app-state.notifications
+                    };
+                }
+            }
+        }
+
+        // ====================================================================
+        // 通知开关 - 布尔状态
+        // ====================================================================
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+
+            Text {
+                text: "通知:";
+                font-size: 16px;
+            }
+
+            // CheckBox 的 checked 属性与状态绑定
+            CheckBox {
+                checked: app-state.notifications;
+                // on-toggled: 状态切换事件
+                on-toggled: {
+                    app-state = {
+                        theme: app-state.theme,
+                        language: app-state.language,
+                        notifications: checked
+                    };
+                }
+            }
+        }
+
+        // ====================================================================
+        // 计数器状态与派生值
+        // ====================================================================
+        // 演示使用函数计算派生值
+        HorizontalLayout {
+            spacing: 15px;
+            alignment: center;
+
+            Button {
+                text: "-";
+                width: 40px;
+                // 调用函数获取步长
+                on-clicked: { counter -= counter_step(); }
+            }
+
+            Text {
+                text: counter;
+                font-size: 24px;
+                width: 80px;
+                horizontal-alignment: center;
+                // 调用函数获取颜色
+                color: counter_color();
+            }
+
+            Button {
+                text: "+";
+                width: 40px;
+                on-clicked: { counter += counter_step(); }
+            }
+        }
+
+        // ====================================================================
+        // 计数器类型选择 - RadioButton 组
+        // ====================================================================
+        // 演示单选按钮组的状态管理
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+
+            Text {
+                text: "计数步长:";
+                font-size: 16px;
+            }
+
+            // RadioButton 需要手动管理互斥状态
+            RadioButton {
+                text: "1 (普通)";
+                checked: counter-type == "normal";
+                on-toggled: { counter-type = "normal"; }
+            }
+
+            RadioButton {
+                text: "5 (快速)";
+                checked: counter-type == "fast";
+                on-toggled: { counter-type = "fast"; }
+            }
+
+            RadioButton {
+                text: "10 (极速)";
+                checked: counter-type == "extreme";
+                on-toggled: { counter-type = "extreme"; }
+            }
+        }
+
+        // ====================================================================
+        // 状态显示 - 调试和展示
+        // ====================================================================
+        // 显示当前状态，便于理解状态变化
+        Rectangle {
+            width: 100%;
+            height: 120px;
+            background: #f5f5f5;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+
+            Text {
+                // 字符串拼接显示多个状态
+                text: "当前状态：\n" +
+                      "主题: " + app-state.theme + "\n" +
+                      "语言: " + app-state.language + "\n" +
+                      "通知: " + (app-state.notifications ? "开启" : "关闭") + "\n" +
+                      "计数器: " + counter + "\n" +
+                      "计数步长: " + counter_step();
+                font-size: 14px;
+                color: #333;
+                word-wrap: true;
+            }
+        }
+    }
+
+    // ========================================================================
+    // 函数定义 - 计算派生值
+    // ========================================================================
+    // function: 定义组件内部函数
+    //
+    // 【语法】
+    // function name(params) -> return-type {
+    //     statements;
+    //     return value;
+    // }
+    //
+    // 【用途】
+    // 1. 计算派生值（基于状态计算）
+    // 2. 封装复杂逻辑
+    // 3. 代码复用
+    //
+    // 【与 Rust 的关联】
+    // function 是纯 Slint 概念，不生成 Rust API
+    // 如果需要在 Rust 中实现复杂计算，使用 callback
+    function counter_step() -> int {
+        // 根据 counter-type 返回不同的步长
+        if counter-type == "normal" {
+            return 1;
+        } else if counter-type == "fast" {
+            return 5;
+        } else {
+            return 10;
+        }
+    }
+
+    // 根据计数器值返回颜色
+    function counter_color() -> color {
+        if counter > 0 {
+            return #009900;  // 正数：绿色
+        } else if counter < 0 {
+            return #cc0000;  // 负数：红色
+        } else {
+            return #666;     // 零：灰色
+        }
+    }
+}
+
+// ============================================================================
+// 【知识点总结】
+// ============================================================================
+//
+// 1. 结构体定义
+//    struct Name { field: type, ... }
+//    用于组织复杂状态
+//    在 Rust 中生成对应结构体
+//
+// 2. 结构体属性
+//    property <StructName> name: { ... };
+//    访问：name.field
+//    更新：必须创建完整新实例
+//
+// 3. 状态管理模式
+//    本地状态：property <type> name;
+//    提升状态：父组件定义，子组件使用
+//    全局状态：通过 Rust 管理
+//
+// 4. 函数定义
+//    function name(params) -> type { ... }
+//    用于计算派生值
+//    纯 Slint 概念，不暴露给 Rust
+//
+// 5. 状态驱动 UI
+//    UI 绑定到状态属性
+//    状态变化 → UI 自动更新
+//    使用条件表达式：state == "value" ? ... : ...
+//
+// 6. 与 Rust 的交互
+//    获取结构体：app.get_app_state()
+//    设置结构体：app.set_app_state(state)
+//    字段访问：state.theme, state.language
+//
+// 7. 最佳实践
+//    - 相关状态组合成结构体
+//    - 使用函数计算派生值
+//    - 避免重复状态（派生 vs 存储）
+//    - 状态提升到最近的公共祖先
+// ============================================================================

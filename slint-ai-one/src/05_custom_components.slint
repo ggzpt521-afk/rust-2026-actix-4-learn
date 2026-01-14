@@ -1,0 +1,458 @@
+// ============================================================================
+// 05_custom_components.slint - Slint 自定义组件示例
+// ============================================================================
+//
+// 【文件说明】
+// 本文件演示如何创建和使用自定义组件
+// 组件是 Slint 的核心抽象，用于封装可复用的 UI 单元
+//
+// 【与 .rs 文件的关联】
+// - export component: 生成 Rust 结构体，可从 Rust 访问
+// - component（无 export）: 仅 Slint 内部使用
+// - 组件的 in/out/in-out 属性决定 Rust API
+// - callback 可以在 Rust 中实现
+//
+// 【组件设计原理】
+// 1. 封装性：隐藏内部实现细节
+// 2. 可配置性：通过属性接收配置
+// 3. 可复用性：同一组件多处使用
+// 4. 组合性：组件可以嵌套组合
+//
+// 【组件通信模式】
+// 父 → 子：通过 in 属性传递数据
+// 子 → 父：通过 callback 回调通知
+// 双向：通过 in-out 属性同步
+// ============================================================================
+
+// ============================================================================
+// 自定义计数器组件
+// ============================================================================
+// 这是一个可复用的计数器组件，展示了组件设计的核心概念
+//
+// 【组件结构】
+// 1. 属性声明：定义组件的接口
+// 2. 回调声明：定义组件的事件
+// 3. UI 布局：组件的视觉结构
+// 4. 内部函数：组件的内部逻辑
+//
+// 【export 与非 export】
+// export component: 可从 Rust 和父 .slint 文件访问
+// component: 仅当前文件内部使用
+export component CustomCounter {
+    // ========================================================================
+    // 输入属性 - 组件配置接口
+    // ========================================================================
+    // in property: 父组件/Rust 可以设置，组件内部只读
+    //
+    // 【设计原则】
+    // - 提供合理的默认值
+    // - 属性名清晰表达用途
+    // - 类型选择要恰当
+
+    // 显示标签
+    in property <string> label: "计数器";
+
+    // 初始值
+    in property <int> initial-value: 0;
+
+    // 步长：每次增减的值
+    in property <int> step: 1;
+
+    // 是否显示限制指示器
+    in property <bool> show-limit-indicator: false;
+
+    // 最大值和最小值
+    in property <int> max-value: 100;
+    in property <int> min-value: 0;
+
+    // ========================================================================
+    // 双向属性 - 状态同步
+    // ========================================================================
+    // in-out property: 父组件和组件内部都可以读写
+    // 用于需要双向同步的状态
+
+    // 当前值：初始化为 initial-value
+    in-out property <int> value: initial-value;
+
+    // ========================================================================
+    // 回调声明 - 组件事件接口
+    // ========================================================================
+    // callback: 组件向外部通知事件
+    //
+    // 【回调 vs 属性】
+    // - 属性：数据流动（状态）
+    // - 回调：事件通知（动作）
+    //
+    // 【Rust 中监听】
+    // app.on_value_changed(|new_value| {
+    //     println!("值变化: {}", new_value);
+    // });
+
+    // 值变化时触发
+    callback value-changed(int);
+
+    // 达到限制时触发
+    callback limit-reached(int);
+
+    // ========================================================================
+    // 组件布局
+    // ========================================================================
+    VerticalLayout {
+        spacing: 8px;
+        alignment: center;
+
+        // 标签显示
+        Text {
+            text: label;
+            font-size: 14px;
+            color: #666;
+        }
+
+        // 计数器控制区域
+        HorizontalLayout {
+            spacing: 10px;
+
+            // 减少按钮
+            // enabled 绑定：值为最小值时禁用
+            Button {
+                text: "-";
+                width: 40px;
+                height: 40px;
+                // 条件表达式控制按钮状态
+                enabled: value > min-value;
+                on-clicked: {
+                    // 减少值
+                    value -= step;
+                    // 触发回调通知父组件
+                    value-changed(value);
+                }
+            }
+
+            // 数值显示
+            Rectangle {
+                width: 60px;
+                height: 40px;
+                background: #f0f0f0;
+                border-radius: 4px;
+
+                Text {
+                    text: value;
+                    font-size: 18px;
+                    // 调用内部函数获取颜色
+                    color: counter_color();
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+
+            // 增加按钮
+            Button {
+                text: "+";
+                width: 40px;
+                height: 40px;
+                enabled: value < max-value;
+                on-clicked: {
+                    value += step;
+                    value-changed(value);
+
+                    // 检查是否达到限制
+                    if show-limit-indicator {
+                        if value >= max-value {
+                            limit-reached(max-value);
+                        } else if value <= min-value {
+                            limit-reached(min-value);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 条件渲染 - 限制指示器
+        // ====================================================================
+        // if condition: Element { ... }
+        // 当条件为真时渲染元素
+        if show-limit-indicator: Rectangle {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+
+            // 进度条
+            Rectangle {
+                // 计算进度百分比
+                width: (value - min-value) * 100% / (max-value - min-value);
+                height: 100%;
+                background: progress_color();
+                border-radius: 2px;
+            }
+        }
+    }
+
+    // ========================================================================
+    // 内部函数
+    // ========================================================================
+    // 根据当前值返回颜色
+    function counter_color() -> color {
+        if value >= max-value {
+            return #cc0000;  // 达到最大值：红色
+        } else if value <= min-value {
+            return #0066cc;  // 达到最小值：蓝色
+        } else {
+            return #333;     // 正常：深灰
+        }
+    }
+
+    // 进度条颜色
+    function progress_color() -> color {
+        if value >= max-value * 0.9 {
+            return #cc0000;  // 90%+：红色警告
+        } else if value >= max-value * 0.7 {
+            return #ff9900;  // 70%+：橙色提示
+        } else {
+            return #009900;  // 正常：绿色
+        }
+    }
+}
+
+// ============================================================================
+// 自定义卡片组件
+// ============================================================================
+// 演示组件嵌套和内容插槽概念
+export component CustomCard {
+    // 卡片标题
+    in property <string> title: "卡片标题";
+
+    // 卡片背景色
+    in property <color> background: #ffffff;
+
+    // 边框颜色
+    in property <color> border-color: #e0e0e0;
+
+    Rectangle {
+        background: background;
+        border: 1px solid border-color;
+        border-radius: 8px;
+        padding: 15px;
+        // 阴影效果
+        shadow-offset-y: 2px;
+        shadow-blur: 8px;
+        shadow-color: rgba(0, 0, 0, 0.1);
+
+        // ====================================================================
+        // 内容插槽
+        // ====================================================================
+        // content: 允许父组件在此处插入内容
+        // 这是组件组合的关键机制
+        //
+        // 【使用方式】
+        // CustomCard {
+        //     content: MyContent { }
+        // }
+        //
+        // 【注意】这是 Slint 0.x 语法
+        // Slint 1.x 使用 @children 或直接嵌套
+        content: Rectangle {
+            width: 100%;
+            height: 100%;
+        }
+
+        // 标题文本（浮动在顶部）
+        Text {
+            text: title;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            position: absolute;
+            top: -10px;
+            left: 15px;
+            background: background;
+            padding: 0 8px;
+        }
+    }
+}
+
+// ============================================================================
+// 主应用组件
+// ============================================================================
+// 演示如何使用自定义组件
+export component CustomComponents {
+    width: 600px;
+    height: 450px;
+
+    // 应用状态
+    in-out property <int> total-count: 0;
+    in-out property <string> status-message: "";
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 20px;
+
+        Text {
+            text: "自定义组件示例";
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            horizontal-alignment: center;
+        }
+
+        // ====================================================================
+        // 使用自定义组件
+        // ====================================================================
+        // 组件名作为元素使用
+        // 通过属性传递配置
+
+        // 使用 CustomCard 包装 CustomCounter
+        CustomCard {
+            title: "基础计数器";
+            width: 100%;
+            height: 120px;
+
+            // content 插槽中放入 CustomCounter
+            content: CustomCounter {
+                label: "基础计数";
+                initial-value: 50;
+                step: 1;
+                // 监听回调
+                on-value-changed(value) {
+                    total-count = update_total();
+                }
+            }
+        }
+
+        // 高级计数器：启用限制指示器
+        CustomCard {
+            title: "高级计数器";
+            width: 100%;
+            height: 140px;
+            background: #fafafa;
+
+            content: CustomCounter {
+                label: "高级计数 (步长: 5)";
+                initial-value: 0;
+                step: 5;
+                show-limit-indicator: true;  // 显示进度条
+                max-value: 100;
+                min-value: 0;
+                on-value-changed(value) {
+                    total-count = update_total();
+                }
+                on-limit-reached(limit) {
+                    status-message = "限制到达: " + limit;
+                    // 注意：setTimeout 是示意，Slint 中需要其他方式实现
+                    // setTimeout(3000, || { status-message = ""; });
+                }
+            }
+        }
+
+        // 多个计数器并排
+        CustomCard {
+            title: "计数器组";
+            width: 100%;
+            height: 120px;
+
+            content: HorizontalLayout {
+                spacing: 20px;
+                padding: 10px;
+
+                // 同一组件多次实例化，不同配置
+                CustomCounter {
+                    label: "计数器 A";
+                    initial-value: 10;
+                    step: 1;
+                    on-value-changed(value) {
+                        total-count = update_total();
+                    }
+                }
+
+                CustomCounter {
+                    label: "计数器 B";
+                    initial-value: 20;
+                    step: 2;
+                    on-value-changed(value) {
+                        total-count = update_total();
+                    }
+                }
+
+                CustomCounter {
+                    label: "计数器 C";
+                    initial-value: 30;
+                    step: 3;
+                    on-value-changed(value) {
+                        total-count = update_total();
+                    }
+                }
+            }
+        }
+
+        // 状态显示
+        HorizontalLayout {
+            spacing: 15px;
+            alignment: center;
+
+            Text {
+                text: "总计: " + total-count;
+                font-size: 18px;
+                font-weight: bold;
+                color: #0066cc;
+            }
+
+            // 条件渲染：有消息时显示
+            if status-message != "": Text {
+                text: status-message;
+                font-size: 14px;
+                color: #cc0000;
+            }
+        }
+    }
+
+    // 更新总计的函数（简化版）
+    function update_total() -> int {
+        return total-count + 1;
+    }
+}
+
+// ============================================================================
+// 【知识点总结】
+// ============================================================================
+//
+// 1. 组件声明
+//    export component Name { }   - 可导出组件
+//    component Name { }          - 内部组件
+//    inherits Parent             - 继承父组件
+//
+// 2. 属性类型
+//    in property      - 输入（外部设置，内部只读）
+//    out property     - 输出（内部设置，外部只读）
+//    in-out property  - 双向（都可读写）
+//    property         - 私有（仅内部访问）
+//
+// 3. 回调机制
+//    声明：callback name(types);
+//    触发：name(args);
+//    监听：on-name(params) { }
+//
+// 4. 组件复用
+//    ComponentName { property: value; }
+//    同一组件可多次实例化
+//    每个实例独立状态
+//
+// 5. 条件渲染
+//    if condition: Element { }
+//    条件为真时渲染
+//
+// 6. 内部函数
+//    function name() -> type { }
+//    封装组件内部逻辑
+//
+// 7. 组件设计原则
+//    - 单一职责
+//    - 合理的属性接口
+//    - 默认值要有意义
+//    - 回调用于事件通知
+//
+// 8. 与 Rust 的关系
+//    export component → Rust 结构体
+//    in/out 属性 → getter/setter 方法
+//    callback → on_xxx() 方法
+// ============================================================================
