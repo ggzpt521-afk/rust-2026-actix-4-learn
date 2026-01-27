@@ -895,6 +895,909 @@ GODEBUG=schedtrace=1000 ./myapp   # 每 1000ms 打印调度信息
 GODEBUG=scheddetail=1 ./myapp     # 详细调度信息
 ```
 
+---
+
+## 反射原理 (Reflection)
+
+反射是 Go 语言中一个强大但"昂贵"的特性，它允许程序**在运行时检查和操作变量的类型和值**。理解反射对于深入掌握 Go 语言至关重要。
+
+### 一、 什么是反射？
+
+**一句话定义：** 反射是程序在**运行时**自我检查和修改自身结构的能力。
+
+**类比：**
+- **编译时**：你知道你要操作的是 `int` 类型的变量，就像你看着一本"说明书"知道这是什么东西。
+- **运行时（反射）**：你拿到一个 `interface{}` 类型的变量，不知道里面是什么，但你可以"拆开看看"，检查它的类型、字段、方法，甚至修改它的值。
+
+```
+正常代码流程                    反射代码流程
+┌─────────────┐                ┌─────────────┐
+│   编译时    │                │   编译时    │
+│ 知道类型    │                │ 只知道是    │
+│ type: int   │                │ interface{} │
+└─────┬───────┘                └─────┬───────┘
+      │                              │
+      ▼                              ▼
+┌─────────────┐                ┌─────────────┐
+│   运行时    │                │   运行时    │
+│ 直接操作    │                │ 反射检查    │
+│ x = x + 1   │                │ 是什么类型？│
+└─────────────┘                │ 有哪些字段？│
+                               │ 然后再操作  │
+                               └─────────────┘
+```
+
+---
+
+### 二、 反射的核心：`reflect.Type` 和 `reflect.Value`
+
+Go 的反射机制由 `reflect` 包提供，核心是两个类型：
+
+| 类型 | 作用 | 获取方式 |
+|------|------|----------|
+| `reflect.Type` | 描述变量的**类型信息**（类型名、方法、字段等） | `reflect.TypeOf(x)` |
+| `reflect.Value` | 描述变量的**值信息**（实际的值，可读可写） | `reflect.ValueOf(x)` |
+
+#### 基础用法示例
+
+```go
+package main
+
+import (
+    "fmt"
+    "reflect"
+)
+
+func main() {
+    var x float64 = 3.14
+
+    // 获取类型信息
+    t := reflect.TypeOf(x)
+    fmt.Println("Type:", t)           // float64
+    fmt.Println("Kind:", t.Kind())    // float64
+
+    // 获取值信息
+    v := reflect.ValueOf(x)
+    fmt.Println("Value:", v)          // 3.14
+    fmt.Println("Float:", v.Float())  // 3.14
+}
+```
+
+#### `Type` vs `Kind` 的区别
+
+这是一个常见的混淆点：
+
+```go
+type MyInt int
+
+var x MyInt = 42
+
+t := reflect.TypeOf(x)
+fmt.Println(t.Name())  // "MyInt"  (自定义类型名)
+fmt.Println(t.Kind())  // "int"    (底层种类)
+```
+
+| 概念 | 含义 | 示例 |
+|------|------|------|
+| **Type** | 具体的类型名称 | `MyInt`、`string`、`*User` |
+| **Kind** | 底层的种类（有限的枚举） | `int`、`string`、`ptr`、`struct`、`slice` 等 |
+
+**Kind 的所有可能值：**
+
+```go
+const (
+    Invalid Kind = iota
+    Bool
+    Int, Int8, Int16, Int32, Int64
+    Uint, Uint8, Uint16, Uint32, Uint64, Uintptr
+    Float32, Float64
+    Complex64, Complex128
+    Array, Chan, Func, Interface, Map, Pointer, Slice, String, Struct
+    UnsafePointer
+)
+```
+
+---
+
+### 三、 反射三大定律
+
+Go 官方博客定义了反射的三大定律，这是理解反射的核心：
+
+#### 定律一：从接口值到反射对象
+
+> **Reflection goes from interface value to reflection object.**
+
+任何传给 `reflect.TypeOf()` 或 `reflect.ValueOf()` 的值，都会先被隐式转换为 `interface{}`，然后反射从这个接口中提取类型和值信息。
+
+```go
+var x int = 42
+
+// 这个过程实际上是：
+// 1. x 被隐式转为 interface{} (包含 type=int, value=42)
+// 2. reflect.ValueOf 从 interface{} 中提取信息
+v := reflect.ValueOf(x)
+```
+
+```
+           定律一：接口 → 反射对象
+┌───────────────┐         ┌───────────────┐
+│  interface{}  │  ────►  │ reflect.Value │
+│ ┌───────────┐ │         │ reflect.Type  │
+│ │ type: int │ │         └───────────────┘
+│ │ value: 42 │ │
+│ └───────────┘ │
+└───────────────┘
+```
+
+#### 定律二：从反射对象到接口值
+
+> **Reflection goes from reflection object to interface value.**
+
+可以用 `Value.Interface()` 方法将反射对象转回 `interface{}`，然后用类型断言恢复原值。
+
+```go
+var x int = 42
+v := reflect.ValueOf(x)
+
+// 转回 interface{}
+i := v.Interface()
+
+// 类型断言恢复原值
+y := i.(int)
+fmt.Println(y)  // 42
+```
+
+```
+           定律二：反射对象 → 接口
+┌───────────────┐         ┌───────────────┐
+│ reflect.Value │  ────►  │  interface{}  │
+└───────────────┘         └───────┬───────┘
+                                  │
+                                  ▼ 类型断言
+                          ┌───────────────┐
+                          │   原始类型    │
+                          │   int: 42     │
+                          └───────────────┘
+```
+
+#### 定律三：要修改反射对象，值必须可设置
+
+> **To modify a reflection object, the value must be settable.**
+
+这是最重要也最容易出错的一条。**只有传入指针**，才能通过反射修改原值。
+
+```go
+// ❌ 错误示例：不可修改
+var x float64 = 3.14
+v := reflect.ValueOf(x)
+v.SetFloat(7.1)  // panic: reflect: reflect.Value.SetFloat using unaddressable value
+
+// ✅ 正确示例：传入指针
+var x float64 = 3.14
+v := reflect.ValueOf(&x)    // 传入指针
+e := v.Elem()               // 获取指针指向的元素
+e.SetFloat(7.1)             // 修改成功
+fmt.Println(x)              // 7.1
+```
+
+**为什么必须用指针？**
+
+```
+传值（不可修改）                 传指针（可修改）
+┌─────────────┐                ┌─────────────┐
+│ x = 3.14    │                │ x = 3.14    │
+└─────┬───────┘                └─────▲───────┘
+      │ 复制                         │
+      ▼                              │ 指向
+┌─────────────┐                ┌─────┴───────┐
+│ v 持有副本  │                │ v 持有 &x   │
+│   3.14      │                │ 可以修改x   │
+│ (与x无关)   │                └─────────────┘
+└─────────────┘
+```
+
+**检查是否可设置：**
+
+```go
+v := reflect.ValueOf(x)
+fmt.Println(v.CanSet())  // false
+
+v = reflect.ValueOf(&x).Elem()
+fmt.Println(v.CanSet())  // true
+```
+
+---
+
+### 四、 反射的底层原理
+
+#### 1. interface{} 的内存结构
+
+理解反射，必须先理解 `interface{}` 的内存结构。空接口在底层由两个指针组成：
+
+```go
+// runtime/runtime2.go 中的定义（简化版）
+type eface struct {  // empty interface
+    _type *_type     // 类型信息指针
+    data  unsafe.Pointer  // 数据指针
+}
+
+type iface struct {  // 非空接口
+    tab  *itab      // 接口表（包含类型和方法）
+    data unsafe.Pointer  // 数据指针
+}
+```
+
+```
+interface{} 底层结构 (eface)
+┌────────────────────────────────────┐
+│          interface{}               │
+│  ┌──────────────┬───────────────┐  │
+│  │   _type      │     data      │  │
+│  │  (类型指针)  │   (数据指针)   │  │
+│  └──────┬───────┴───────┬───────┘  │
+└─────────┼───────────────┼──────────┘
+          │               │
+          ▼               ▼
+    ┌──────────┐    ┌──────────┐
+    │ _type    │    │ 实际数据 │
+    │ ├─size   │    │   42     │
+    │ ├─kind   │    └──────────┘
+    │ ├─hash   │
+    │ └─...    │
+    └──────────┘
+```
+
+#### 2. reflect.TypeOf 和 reflect.ValueOf 的实现
+
+```go
+// reflect/value.go（简化版）
+func TypeOf(i interface{}) Type {
+    eface := *(*emptyInterface)(unsafe.Pointer(&i))
+    return toType(eface.typ)  // 返回 _type 指针
+}
+
+func ValueOf(i interface{}) Value {
+    if i == nil {
+        return Value{}
+    }
+    escapes(i)
+    return unpackEface(i)  // 解包 eface，返回 Value
+}
+```
+
+**关键点：**
+- `TypeOf` 和 `ValueOf` 接收 `interface{}` 参数
+- 它们从 interface 的两个指针字段中提取信息
+- 这就是为什么**任何类型都可以传给反射函数**——因为都会先转成 interface{}
+
+#### 3. _type 结构（类型元数据）
+
+```go
+// runtime/type.go（简化版）
+type _type struct {
+    size       uintptr   // 类型大小
+    ptrdata    uintptr   // 包含指针的字节数
+    hash       uint32    // 类型哈希（用于快速比较）
+    tflag      tflag     // 类型标志
+    align      uint8     // 对齐
+    fieldAlign uint8     // 字段对齐
+    kind       uint8     // 种类（Kind）
+    equal      func(unsafe.Pointer, unsafe.Pointer) bool  // 相等判断函数
+    gcdata     *byte     // GC 相关数据
+    str        nameOff   // 类型名称偏移
+    ptrToThis  typeOff   // 指向该类型的指针类型
+}
+```
+
+```
+_type 结构体详解
+┌─────────────────────────────────────┐
+│             _type                   │
+├─────────────────────────────────────┤
+│  size: 8          (类型占用字节数)   │
+│  kind: 2 (Int)    (底层种类)        │
+│  hash: 0x1234     (类型哈希)        │
+│  equal: func...   (比较函数)        │
+│  str: "int"       (类型名)          │
+│  ...                                │
+└─────────────────────────────────────┘
+```
+
+---
+
+### 五、 结构体反射详解
+
+结构体的反射是最常用的场景，比如 ORM、JSON 序列化等。
+
+#### 1. 遍历结构体字段
+
+```go
+type User struct {
+    Name    string `json:"name" validate:"required"`
+    Age     int    `json:"age" validate:"min=0,max=150"`
+    Email   string `json:"email,omitempty"`
+    private string // 私有字段
+}
+
+func inspectStruct(x interface{}) {
+    t := reflect.TypeOf(x)
+    v := reflect.ValueOf(x)
+
+    // 如果是指针，获取其指向的元素
+    if t.Kind() == reflect.Ptr {
+        t = t.Elem()
+        v = v.Elem()
+    }
+
+    fmt.Printf("类型: %s, 字段数: %d\n", t.Name(), t.NumField())
+
+    for i := 0; i < t.NumField(); i++ {
+        field := t.Field(i)        // 获取字段类型信息
+        value := v.Field(i)        // 获取字段值
+
+        fmt.Printf("  字段 %d:\n", i)
+        fmt.Printf("    名称: %s\n", field.Name)
+        fmt.Printf("    类型: %s\n", field.Type)
+        fmt.Printf("    Tag:  %s\n", field.Tag)
+        fmt.Printf("    JSON: %s\n", field.Tag.Get("json"))
+
+        // 检查是否可导出（首字母大写）
+        if field.PkgPath == "" {  // PkgPath 为空表示可导出
+            fmt.Printf("    值:   %v\n", value.Interface())
+        } else {
+            fmt.Printf("    值:   (不可导出)\n")
+        }
+    }
+}
+
+func main() {
+    u := User{Name: "张三", Age: 25, Email: "zhang@example.com", private: "secret"}
+    inspectStruct(u)
+}
+```
+
+**输出：**
+```
+类型: User, 字段数: 4
+  字段 0:
+    名称: Name
+    类型: string
+    Tag:  json:"name" validate:"required"
+    JSON: name
+    值:   张三
+  字段 1:
+    名称: Age
+    类型: int
+    Tag:  json:"age" validate:"min=0,max=150"
+    JSON: age
+    值:   25
+  ...
+```
+
+#### 2. 结构体 Tag 解析原理
+
+```go
+// StructField 结构
+type StructField struct {
+    Name      string    // 字段名
+    PkgPath   string    // 包路径（空表示可导出）
+    Type      Type      // 字段类型
+    Tag       StructTag // 原始 tag 字符串
+    Offset    uintptr   // 在结构体中的偏移量
+    Index     []int     // 用于 FieldByIndex 的索引
+    Anonymous bool      // 是否匿名字段（嵌入）
+}
+
+// StructTag 的 Get 方法
+func (tag StructTag) Get(key string) string {
+    // 解析 `key:"value"` 格式
+    // 返回对应 key 的 value
+}
+```
+
+```
+Tag 解析示例
+┌─────────────────────────────────────────────────┐
+│ `json:"name,omitempty" validate:"required"`    │
+└─────────────────────────────────────────────────┘
+                    │
+                    ▼ Tag.Get("json")
+            ┌───────────────┐
+            │ name,omitempty │
+            └───────────────┘
+                    │
+                    ▼ Tag.Get("validate")
+            ┌───────────────┐
+            │   required    │
+            └───────────────┘
+```
+
+#### 3. 动态修改结构体字段
+
+```go
+func setField(obj interface{}, name string, value interface{}) error {
+    v := reflect.ValueOf(obj)
+
+    // 必须是指针
+    if v.Kind() != reflect.Ptr {
+        return fmt.Errorf("必须传入指针")
+    }
+
+    v = v.Elem()
+    if v.Kind() != reflect.Struct {
+        return fmt.Errorf("必须是结构体指针")
+    }
+
+    field := v.FieldByName(name)
+    if !field.IsValid() {
+        return fmt.Errorf("字段 %s 不存在", name)
+    }
+    if !field.CanSet() {
+        return fmt.Errorf("字段 %s 不可设置（可能是私有字段）", name)
+    }
+
+    val := reflect.ValueOf(value)
+    if field.Type() != val.Type() {
+        return fmt.Errorf("类型不匹配: %s != %s", field.Type(), val.Type())
+    }
+
+    field.Set(val)
+    return nil
+}
+
+func main() {
+    u := &User{Name: "张三", Age: 25}
+
+    setField(u, "Name", "李四")
+    setField(u, "Age", 30)
+
+    fmt.Printf("%+v\n", u)  // &{Name:李四 Age:30 Email: private:}
+}
+```
+
+---
+
+### 六、 方法反射
+
+#### 1. 获取类型的方法
+
+```go
+type Calculator struct{}
+
+func (c Calculator) Add(a, b int) int      { return a + b }
+func (c Calculator) Sub(a, b int) int      { return a - b }
+func (c *Calculator) Mul(a, b int) int     { return a * b }  // 指针接收者
+
+func listMethods(x interface{}) {
+    t := reflect.TypeOf(x)
+
+    fmt.Printf("类型 %s 的方法:\n", t)
+    for i := 0; i < t.NumMethod(); i++ {
+        method := t.Method(i)
+        fmt.Printf("  %s: %s\n", method.Name, method.Type)
+    }
+}
+
+func main() {
+    c := Calculator{}
+
+    fmt.Println("=== 值类型 ===")
+    listMethods(c)
+    // Add: func(main.Calculator, int, int) int
+    // Sub: func(main.Calculator, int, int) int
+
+    fmt.Println("\n=== 指针类型 ===")
+    listMethods(&c)
+    // Add: func(*main.Calculator, int, int) int
+    // Mul: func(*main.Calculator, int, int) int
+    // Sub: func(*main.Calculator, int, int) int
+}
+```
+
+**注意：** 指针类型可以获取值接收者和指针接收者的所有方法，而值类型只能获取值接收者的方法。
+
+#### 2. 动态调用方法
+
+```go
+func callMethod(obj interface{}, methodName string, args ...interface{}) ([]interface{}, error) {
+    v := reflect.ValueOf(obj)
+    method := v.MethodByName(methodName)
+
+    if !method.IsValid() {
+        return nil, fmt.Errorf("方法 %s 不存在", methodName)
+    }
+
+    // 准备参数
+    in := make([]reflect.Value, len(args))
+    for i, arg := range args {
+        in[i] = reflect.ValueOf(arg)
+    }
+
+    // 调用方法
+    results := method.Call(in)
+
+    // 转换结果
+    out := make([]interface{}, len(results))
+    for i, r := range results {
+        out[i] = r.Interface()
+    }
+
+    return out, nil
+}
+
+func main() {
+    c := Calculator{}
+
+    results, _ := callMethod(c, "Add", 10, 20)
+    fmt.Println("Add(10, 20) =", results[0])  // 30
+
+    results, _ = callMethod(c, "Sub", 50, 30)
+    fmt.Println("Sub(50, 30) =", results[0])  // 20
+}
+```
+
+---
+
+### 七、 反射性能分析
+
+反射很强大，但代价是性能。下面通过基准测试来量化这个代价：
+
+#### 1. 基准测试代码
+
+```go
+type Person struct {
+    Name string
+    Age  int
+}
+
+// 直接访问
+func BenchmarkDirect(b *testing.B) {
+    p := Person{Name: "test", Age: 20}
+    for i := 0; i < b.N; i++ {
+        _ = p.Name
+        _ = p.Age
+    }
+}
+
+// 反射访问
+func BenchmarkReflect(b *testing.B) {
+    p := Person{Name: "test", Age: 20}
+    for i := 0; i < b.N; i++ {
+        v := reflect.ValueOf(p)
+        _ = v.FieldByName("Name").String()
+        _ = v.FieldByName("Age").Int()
+    }
+}
+
+// 优化：缓存反射信息
+func BenchmarkReflectCached(b *testing.B) {
+    p := Person{Name: "test", Age: 20}
+    t := reflect.TypeOf(p)
+    nameIdx, _ := t.FieldByName("Name")
+    ageIdx, _ := t.FieldByName("Age")
+
+    for i := 0; i < b.N; i++ {
+        v := reflect.ValueOf(p)
+        _ = v.FieldByIndex(nameIdx.Index).String()
+        _ = v.FieldByIndex(ageIdx.Index).Int()
+    }
+}
+```
+
+#### 2. 性能对比
+
+| 方法 | 耗时 | 相对性能 |
+|------|------|----------|
+| 直接访问 | ~0.5 ns/op | **基准** |
+| 反射（每次查找） | ~200 ns/op | **慢 400 倍** |
+| 反射（缓存索引） | ~50 ns/op | **慢 100 倍** |
+
+#### 3. 性能损耗来源
+
+```
+反射操作的开销分解
+┌─────────────────────────────────────────────────┐
+│                  反射调用                        │
+├─────────────────────────────────────────────────┤
+│  1. 接口装箱 (interface{} 转换)     ~10 ns      │
+│  2. 类型检查 (Kind/Type 判断)       ~5 ns       │
+│  3. 字段查找 (FieldByName)          ~100 ns     │
+│  4. 值提取 (Interface())            ~20 ns      │
+│  5. 内存分配（可能发生逃逸）          ~50+ ns    │
+├─────────────────────────────────────────────────┤
+│  总计                               ~200 ns     │
+└─────────────────────────────────────────────────┘
+```
+
+#### 4. 优化建议
+
+```go
+// ❌ 坏：每次都查找字段
+for _, item := range items {
+    v := reflect.ValueOf(item)
+    name := v.FieldByName("Name").String()  // 重复查找
+}
+
+// ✅ 好：缓存字段索引
+t := reflect.TypeOf(items[0])
+field, _ := t.FieldByName("Name")
+idx := field.Index
+
+for _, item := range items {
+    v := reflect.ValueOf(item)
+    name := v.FieldByIndex(idx).String()  // 直接用索引
+}
+
+// ✅ 更好：使用代码生成代替反射
+// 例如：使用 go generate + 模板生成类型安全的代码
+```
+
+---
+
+### 八、 常见使用场景
+
+#### 1. JSON 序列化/反序列化
+
+```go
+// encoding/json 包内部使用反射来实现
+type User struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+// 序列化时，json 包通过反射：
+// 1. 获取结构体的所有字段
+// 2. 读取 json tag 确定 JSON 键名
+// 3. 获取字段值并编码
+
+data, _ := json.Marshal(User{Name: "张三", Age: 25})
+// 输出: {"name":"张三","age":25}
+```
+
+#### 2. ORM 框架
+
+```go
+// 简化版 ORM 插入实现
+func Insert(db *sql.DB, table string, obj interface{}) error {
+    v := reflect.ValueOf(obj)
+    t := v.Type()
+
+    var columns, placeholders []string
+    var values []interface{}
+
+    for i := 0; i < t.NumField(); i++ {
+        field := t.Field(i)
+        column := field.Tag.Get("db")
+        if column == "" {
+            column = field.Name
+        }
+
+        columns = append(columns, column)
+        placeholders = append(placeholders, "?")
+        values = append(values, v.Field(i).Interface())
+    }
+
+    query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+        table,
+        strings.Join(columns, ", "),
+        strings.Join(placeholders, ", "))
+
+    _, err := db.Exec(query, values...)
+    return err
+}
+```
+
+#### 3. 依赖注入
+
+```go
+// 简化版依赖注入容器
+type Container struct {
+    services map[reflect.Type]interface{}
+}
+
+func (c *Container) Register(service interface{}) {
+    t := reflect.TypeOf(service)
+    c.services[t] = service
+}
+
+func (c *Container) Resolve(target interface{}) error {
+    v := reflect.ValueOf(target).Elem()
+    t := v.Type()
+
+    for i := 0; i < t.NumField(); i++ {
+        field := t.Field(i)
+        if field.Tag.Get("inject") != "" {
+            service, ok := c.services[field.Type]
+            if ok {
+                v.Field(i).Set(reflect.ValueOf(service))
+            }
+        }
+    }
+    return nil
+}
+```
+
+#### 4. 校验框架
+
+```go
+// 简化版字段校验
+func Validate(obj interface{}) []error {
+    var errs []error
+    v := reflect.ValueOf(obj)
+    t := v.Type()
+
+    for i := 0; i < t.NumField(); i++ {
+        field := t.Field(i)
+        value := v.Field(i)
+
+        rules := field.Tag.Get("validate")
+        if strings.Contains(rules, "required") {
+            if value.IsZero() {
+                errs = append(errs, fmt.Errorf("%s 不能为空", field.Name))
+            }
+        }
+
+        // 更多规则...
+    }
+    return errs
+}
+```
+
+---
+
+### 九、 反射 vs 泛型
+
+Go 1.18 引入了泛型，在某些场景下可以替代反射：
+
+| 场景 | 反射 | 泛型 | 推荐 |
+|------|------|------|------|
+| 类型安全的通用容器 | ❌ 运行时类型检查 | ✅ 编译时类型检查 | **泛型** |
+| 运行时动态处理未知类型 | ✅ 可以 | ❌ 不能 | **反射** |
+| 处理 struct tag | ✅ 只能用反射 | ❌ 不支持 | **反射** |
+| 序列化/反序列化 | ✅ 目前主流 | ⚠️ 有限支持 | **反射**（暂时） |
+| 性能敏感场景 | ❌ 慢 | ✅ 快 | **泛型** |
+
+```go
+// 泛型版本 - 编译时类型安全，性能好
+func Max[T cmp.Ordered](a, b T) T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// 反射版本 - 运行时检查，性能差
+func MaxReflect(a, b interface{}) interface{} {
+    va := reflect.ValueOf(a)
+    vb := reflect.ValueOf(b)
+    // 需要各种类型判断...
+    switch va.Kind() {
+    case reflect.Int, reflect.Int64:
+        if va.Int() > vb.Int() {
+            return a
+        }
+        return b
+    // ...更多类型
+    }
+    return nil
+}
+```
+
+---
+
+### 十、 反射使用总结
+
+#### 什么时候用反射？
+
+| 场景 | 是否使用反射 |
+|------|-------------|
+| 处理 `interface{}` 类型的动态数据 | ✅ 用 |
+| 实现序列化/反序列化 | ✅ 用 |
+| 实现 ORM 或通用框架 | ✅ 用 |
+| 基于 struct tag 的功能 | ✅ 用 |
+| 已知类型的普通业务逻辑 | ❌ 不用 |
+| 性能关键路径 | ❌ 尽量不用 |
+| 可以用泛型解决的问题 | ❌ 优先泛型 |
+
+#### 反射口诀
+
+```
+反射三定律，牢记心中：
+1. 接口到反射，TypeOf 和 ValueOf
+2. 反射到接口，Interface() 拿回来
+3. 要改值，必传指针，Elem() 取元素
+
+性能记心间：
+- 反射比直接访问慢 100-400 倍
+- 能缓存的信息要缓存
+- 热点路径避免反射
+```
+
+#### 完整示例：简易 JSON 序列化
+
+```go
+package main
+
+import (
+    "fmt"
+    "reflect"
+    "strings"
+)
+
+func toJSON(v interface{}) string {
+    return marshal(reflect.ValueOf(v))
+}
+
+func marshal(v reflect.Value) string {
+    switch v.Kind() {
+    case reflect.String:
+        return fmt.Sprintf(`"%s"`, v.String())
+    case reflect.Int, reflect.Int64:
+        return fmt.Sprintf("%d", v.Int())
+    case reflect.Float64:
+        return fmt.Sprintf("%f", v.Float())
+    case reflect.Bool:
+        return fmt.Sprintf("%t", v.Bool())
+    case reflect.Slice, reflect.Array:
+        var items []string
+        for i := 0; i < v.Len(); i++ {
+            items = append(items, marshal(v.Index(i)))
+        }
+        return "[" + strings.Join(items, ",") + "]"
+    case reflect.Struct:
+        var fields []string
+        t := v.Type()
+        for i := 0; i < v.NumField(); i++ {
+            field := t.Field(i)
+            if field.PkgPath != "" { // 跳过私有字段
+                continue
+            }
+            key := field.Tag.Get("json")
+            if key == "" {
+                key = field.Name
+            }
+            val := marshal(v.Field(i))
+            fields = append(fields, fmt.Sprintf(`"%s":%s`, key, val))
+        }
+        return "{" + strings.Join(fields, ",") + "}"
+    case reflect.Ptr:
+        if v.IsNil() {
+            return "null"
+        }
+        return marshal(v.Elem())
+    default:
+        return "null"
+    }
+}
+
+func main() {
+    type Address struct {
+        City   string `json:"city"`
+        Street string `json:"street"`
+    }
+
+    type Person struct {
+        Name    string   `json:"name"`
+        Age     int      `json:"age"`
+        Address Address  `json:"address"`
+        Hobbies []string `json:"hobbies"`
+    }
+
+    p := Person{
+        Name: "张三",
+        Age:  25,
+        Address: Address{
+            City:   "北京",
+            Street: "长安街",
+        },
+        Hobbies: []string{"编程", "阅读"},
+    }
+
+    fmt.Println(toJSON(p))
+    // {"name":"张三","age":25,"address":{"city":"北京","street":"长安街"},"hobbies":["编程","阅读"]}
+}
+```
+
 ## 快速开始
 
 ```bash
@@ -989,9 +1892,10 @@ go test -v ./...
 ├── 12_concurrency.go    # 并发编程
 ├── 13_stdlib.go         # 常用标准库
 ├── 14_builtins.go       # 内置函数
-└── 15_testing/          # 单元测试
-    ├── math.go          # 被测试代码
-    └── math_test.go     # 测试代码
+├── 15_testing/          # 单元测试
+│   ├── math.go          # 被测试代码
+│   └── math_test.go     # 测试代码
+└── 16_reflection.go     # 反射原理与实践
 ```
 
 ## 运行示例
@@ -1041,6 +1945,9 @@ go run 14_builtins.go
 
 # 运行单元测试
 cd 15_testing && go test -v
+
+# 运行反射示例
+go run 16_reflection.go
 ```
 
 ## 测试命令
@@ -1225,6 +2132,19 @@ go test -race
 - 基准测试
 - 模糊测试
 - 测试覆盖率
+
+### 16_reflection.go - 反射原理与实践
+- reflect.Type 和 reflect.Value
+- Type vs Kind 的区别
+- 反射三大定律
+- interface{} 底层内存结构
+- 结构体反射（字段遍历、Tag 解析）
+- 动态修改结构体字段
+- 方法反射（获取方法、动态调用）
+- DeepEqual 深度比较
+- 动态创建值（New, MakeSlice, MakeMap）
+- 简易 JSON 序列化实现
+- 反射性能分析与优化建议
 
 ## 学习建议
 

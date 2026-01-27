@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深度解析：Gin (Radix Tree) vs Laravel (Hybrid Map/Regex)</title>
+    <style>
+        :root {
+            --gin-color: #00add8;
+            --gin-bg: #e6f7ff;
+            --laravel-color: #ff2d20;
+            --laravel-bg: #fff5f5;
+            --terminal-bg: #2d2d2d;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --success-color: #2ecc71;
+            --map-color: #10b981; 
+            --regex-color: #f59e0b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 { margin: 0; font-size: 2.5em; font-weight: 700; }
+        .subtitle { opacity: 0.9; margin-top: 10px; font-weight: 300; font-size: 1.2em; }
+
+        .card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-top: 0; color: #2c3e50; }
+        h3 { margin-top: 25px; color: #555; }
+
+        /* Styles for Specific Sections */
+        .card-terminal { border-top: 5px solid #333; }
+        .card-gin { border-left: 6px solid var(--gin-color); }
+        .card-gin h2 { color: #007bb6; }
+        .card-laravel { border-left: 6px solid var(--laravel-color); }
+        .card-laravel h2 { color: #d63031; }
+
+        /* Terminal Code Block */
+        .terminal {
+            background: var(--terminal-bg);
+            color: #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            margin: 10px 0;
+            border-left: 4px solid #999;
+        }
+        .cmd { color: #fff; font-weight: bold; }
+        .prompt { color: #2ecc71; }
+        .output { color: #aaa; font-size: 0.9em; margin-top: 5px; display: block; }
+
+        /* Diagrams & SVG */
+        svg { width: 100%; height: auto; max-height: 300px; }
+        .node-rect { fill: white; stroke: #333; stroke-width: 2px; rx: 5; }
+        .node-text { font-family: monospace; font-size: 14px; text-anchor: middle; dominant-baseline: middle; }
+        .edge { stroke: #666; stroke-width: 2px; fill: none; }
+        .param-node { stroke: #e67e22; stroke-width: 2px; fill: #fff5e6; }
+
+        /* Code/File Content */
+        .code-box {
+            font-family: 'Consolas', monospace;
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        .kw { color: #c678dd; } /* keyword */
+        .str { color: #98c379; } /* string */
+        .cmt { color: #5c6370; font-style: italic; } /* comment */
+        .hl-map { background: rgba(16, 185, 129, 0.2); padding: 2px; border-radius: 2px; }
+        .hl-regex { background: rgba(245, 158, 11, 0.2); padding: 2px; border-radius: 2px; }
+
+        /* Flow Chart Styles */
+        .flow-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .box { padding: 10px 20px; border-radius: 6px; color: white; font-weight: bold; text-align: center; font-size: 0.9em; }
+        .box-start { background: #34495e; }
+        .box-map { background: var(--map-color); }
+        .box-regex { background: var(--regex-color); }
+        .arrow { color: #999; font-size: 1.2em; }
+
+        /* Comparison Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 15px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background-color: #f8f9fa; color: #555; }
+        .winner { color: var(--gin-color); font-weight: bold; }
+        .loser { color: #999; }
+        
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Web 框架路由原理全景图</h1>
+        <div class="subtitle">从缓存机制到算法核心：Gin vs Laravel</div>
+    </header>
+
+    <div class="card card-terminal">
+        <h2>0. 前置解密：那个“消失”的 routes-v7.php</h2>
+        <p>很多开发者在 <code>bootstrap/cache/</code> 下看不到缓存文件，是因为 Laravel 默认运行在<b>“开发模式”</b>。</p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h3>🛠️ 开发模式 (裸奔状态)</h3>
+                <p><b>现象：</b> <code>bootstrap/cache/</code> 是空的。</p>
+                <p><b>原理：</b> 每次请求进来，PHP 都会实时读取 <code>routes/web.php</code> 并解析。修改代码立即生效，但性能略低。</p>
+                <div class="terminal">
+                    <span class="prompt">$</span> <span class="cmd">ls bootstrap/cache/</span><br>
+                    <span class="output">packages.php services.php (无路由文件)</span>
+                </div>
+                <div class="terminal">
+                    <span class="prompt">$</span> <span class="cmd">php artisan route:clear</span><br>
+                    <span class="output">Route cache cleared! (回到开发模式)</span>
+                </div>
+            </div>
+
+            <div>
+                <h3>🚀 生产模式 (缓存状态)</h3>
+                <p><b>现象：</b> 出现 <code>routes-v7.php</code>。</p>
+                <p><b>原理：</b> 将路由解析结果序列化存入硬盘。请求进来直接读这个文件，不再扫描 <code>routes/</code> 目录。<b>性能最高。</b></p>
+                <div class="terminal">
+                    <span class="prompt">$</span> <span class="cmd">php artisan route:cache</span><br>
+                    <span class="output">Routes cached successfully!</span>
+                </div>
+                <div class="terminal">
+                    <span class="prompt">$</span> <span class="cmd">ls bootstrap/cache/</span><br>
+                    <span class="output" style="color:#e67e22; font-weight:bold;">routes-v7.php (它出现了!)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-gin">
+        <div style="position:absolute; top:20px; right:20px; font-weight:bold; color:var(--gin-color); opacity:0.1; font-size:4em;">GIN</div>
+        <h2>1. Gin 的做法：Radix Tree (前缀树)</h2>
+        <p>Gin 的核心算法是 <b>Radix Tree (基数树)</b>。它不存储完整的 URL，而是将 URL 拆解为公共前缀，构建一棵树。</p>
+        
+        <p><b>场景：</b> 注册路由 <code>/search</code>, <code>/support</code>, <code>/blog/:id</code></p>
+
+        <svg viewBox="0 0 600 280">
+            <path d="M 50 140 L 150 140" class="edge" />
+            <rect x="10" y="120" width="40" height="40" class="node-rect" />
+            <text x="30" y="140" class="node-text">GET</text>
+
+            <rect x="150" y="120" width="60" height="40" class="node-rect" />
+            <text x="180" y="140" class="node-text">/</text>
+
+            <path d="M 210 140 L 300 50" class="edge" /> 
+            <path d="M 210 140 L 300 140" class="edge" /> 
+            <path d="M 210 140 L 300 230" class="edge" /> 
+
+            <rect x="300" y="30" width="100" height="40" class="node-rect" />
+            <text x="350" y="50" class="node-text">search</text>
+
+            <rect x="300" y="120" width="100" height="40" class="node-rect" />
+            <text x="350" y="140" class="node-text">support</text>
+
+            <rect x="300" y="210" width="80" height="40" class="node-rect" />
+            <text x="340" y="230" class="node-text">blog/</text>
+
+            <path d="M 380 230 L 450 230" class="edge" />
+            <rect x="450" y="210" width="80" height="40" class="node-rect param-node" />
+            <text x="490" y="230" class="node-text" fill="#d35400">:id</text>
+        </svg>
+
+        <div style="background: var(--gin-bg); padding: 15px; border-radius: 6px; margin-top: 15px;">
+            <strong>⚡️ 核心优势：查字典</strong><br>
+            匹配 <code>/blog/1001</code> 时：<br>
+            1. 匹配 <code>/</code> -> 2. 匹配 <code>blog/</code> -> 3. 剩下的 <code>1001</code> 放入 <code>:id</code> 节点。<br>
+            <b>复杂度 O(K)：</b> 仅取决于 URL 长度，与拥有 10 个还是 10 万个路由无关。
+        </div>
+    </div>
+
+    <div class="card card-laravel">
+        <div style="position:absolute; top:20px; right:20px; font-weight:bold; color:var(--laravel-color); opacity:0.1; font-size:4em;">Laravel</div>
+        <h2>2. Laravel 的真相：Map + Regex 混合双打</h2>
+        <p>执行 <code>php artisan route:cache</code> 后生成的 <code>routes-v7.php</code> 文件，揭示了 Laravel 路由的真实架构：<b>静态路由走 Map，动态路由走正则。</b></p>
+
+        <h3>📂 缓存文件结构解剖 (routes-v7.php)</h3>
+        <div class="code-box">
+<span class="kw">return</span> [
+    <span class="cmt">// PART 1: 静态路由 (Static Map)</span>
+    <span class="cmt">// 纯 Hash 查找，速度 O(1)，极其快</span>
+    <span class="str">'static_routes'</span> => [
+        <span class="hl-map">'/login'</span> => [...],
+        <span class="hl-map">'/about'</span> => [...],
+        <span class="hl-map">'/api/user'</span> => [...],
+    ],
+
+    <span class="cmt">// PART 2: 动态路由 (Merged Regex)</span>
+    <span class="cmt">// 所有带参数的路由被合并成一个“巨型正则”</span>
+    <span class="str">'regex'</span> => [
+        <span class="hl-regex">'#^(?|/blog/([^/]++)(*:MARK:blog)|/user/([^/]++)(*:MARK:user)|...)$#x'</span> => [...]
+    ],
+];
+        </div>
+
+        <h3>🚦 匹配流程图</h3>
+        <div class="flow-container">
+            <div class="box box-start">请求进来</div>
+            <div class="arrow">→</div>
+            
+            <div style="border: 2px dashed #ccc; padding: 10px; border-radius: 8px;">
+                <div style="font-size:0.8em; color:#666; margin-bottom:5px;">第一步：查静态表</div>
+                <div class="box box-map">Static Map (Hash)</div>
+            </div>
+
+            <div class="arrow">Miss ↘</div>
+            
+            <div style="border: 2px dashed #ccc; padding: 10px; border-radius: 8px;">
+                <div style="font-size:0.8em; color:#666; margin-bottom:5px;">第二步：跑正则</div>
+                <div class="box box-regex">Merged Regex (PCRE)</div>
+            </div>
+        </div>
+
+        <div style="background: var(--laravel-bg); padding: 15px; border-radius: 6px; margin-top: 20px;">
+            <strong>🐢 性能瓶颈：动态路由</strong><br>
+            一旦 URL 中包含参数（如 <code>{id}</code>），Map 失效，必须进行正则运算。虽然 Laravel 做了合并优化，但物理上依然需要扫描字符串，开销随正则长度增加。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>3. 终极对比：查字典 vs 翻名单</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th width="20%">维度</th>
+                    <th width="40%" style="color:var(--gin-color)">Gin (Go)</th>
+                    <th width="40%" style="color:var(--laravel-color)">Laravel (PHP)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>核心数据结构</b></td>
+                    <td><b>Radix Tree (基数树)</b><br><small>树状结构，层级分明</small></td>
+                    <td><b>Map + Regex (混合结构)</b><br><small>Hash 表 + 巨型正则串</small></td>
+                </tr>
+                <tr>
+                    <td><b>静态路由</b><br>(/about)</td>
+                    <td><b>极快</b> (树查找)</td>
+                    <td><b>极快</b> (Hash 查找，理论上 O(1))</td>
+                </tr>
+                <tr>
+                    <td><b>动态路由</b><br>(/user/{id})</td>
+                    <td><b>极快</b> (节点截取，无回退)</td>
+                    <td><b>较慢</b> (回退到正则扫描，O(N))</td>
+                </tr>
+                <tr>
+                    <td><b>内存占用</b></td>
+                    <td><span class="winner">极低</span><br>公共前缀只存一份。</td>
+                    <td><span class="loser">较高</span><br>正则字符串很长，占用内存。</td>
+                </tr>
+                <tr>
+                    <td><b>结论</b></td>
+                    <td><span class="winner">查字典</span><br>精准定位，一步到位。</td>
+                    <td><span class="loser">看名单</span><br>静态的一眼看到，动态的要逐行比对。</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+</body>
+</html>
